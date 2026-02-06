@@ -3,75 +3,230 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TCCC-SIM</title>
+    <title>TCCC-SIM | Casualty Lab</title>
     <style>
-        /* Fill screen and center content */
-        body, html {
-            height: 100%;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #1a1a1a; /* Dark tactical theme */
-            color: #f0f0f0;
-            font-family: 'Courier New', Courier, monospace;
-        }
+        body, html { height: 100%; margin: 0; background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .hidden { display: none !important; }
+        #ui-layer { display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
+        .panel { background: #1e1e1e; padding: 30px; border: 1px solid #333; border-radius: 8px; text-align: center; min-width: 450px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; margin-top: 20px; }
+        .control-group { display: flex; flex-direction: column; }
+        label { font-size: 0.8rem; color: #8da45b; margin-bottom: 5px; text-transform: uppercase; font-weight: bold; }
+        select, input { background: #2d2d2d; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; }
+        .btn { background: #4a5d23; color: white; border: none; padding: 12px 25px; margin: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; text-transform: uppercase; }
+        .btn:hover { background: #6b823d; }
+        .btn-random { background: #563d82; }
 
-        /* Menu Container */
-        #main-menu {
-            text-align: center;
-            border: 2px solid #4a5d23; /* Olive drab border */
-            padding: 40px;
-            background: rgba(0, 0, 0, 0.8);
-            box-shadow: 0 0 20px rgba(74, 93, 35, 0.5);
-        }
+        /* Real-Time Simulator CSS */
+        #simulation-screen h2 { color: #ff4d4d; }
+        #blood-loss-bar-container { width: 100%; background-color: #333; border-radius: 5px; margin-top: 20px; overflow: hidden; }
+        #blood-loss-bar { height: 30px; width: 0%; background-color: #b32d2d; text-align: center; line-height: 30px; color: white; transition: width 0.5s ease-out; font-weight: bold; }
+        #current-vitals { margin-top: 15px; font-size: 1.2rem; }
+        .vital-sign { margin: 5px 0; }
+        .fatality { color: red; animation: pulse 1s infinite alternate; }
+        @keyframes pulse { from { opacity: 1; } to { opacity: 0.5; } }
 
-        h1 {
-            font-size: 3rem;
-            margin-bottom: 2rem;
-            letter-spacing: 5px;
-            color: #8da45b;
-        }
-
-        /* Standard Button Style */
-        .btn {
-            display: block;
-            width: 200px;
-            padding: 15px;
-            margin: 15px auto;
-            background: #4a5d23;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 1.2rem;
-            font-weight: bold;
-            transition: 0.3s;
-        }
-
-        .btn:hover {
-            background: #6b823d;
-            transform: scale(1.05);
-        }
     </style>
 </head>
 <body>
 
-    <div id="main-menu">
-        <h1>TCCC-SIM</h1>
-        <button class="btn" onclick="startGame()">START</button>
-        <button class="btn" onclick="openSettings()">SETTINGS</button>
+    <div id="ui-layer">
+        <!-- MAIN MENU -->
+        <div id="main-menu" class="panel">
+            <h1 style="color:#8da45b; letter-spacing: 4px;">TCCC-SIM</h1>
+            <button class="btn" onclick="showGenerator()">START SIMULATION</button>
+            <button class="btn">SETTINGS</button>
+        </div>
+
+        <!-- CASUALTY GENERATOR (Configuration Screen) -->
+        <div id="generator" class="panel hidden">
+            <!-- ... (Configuration elements are unchanged from previous step) ... -->
+             <h2 style="margin-top:0;">CASUALTY CONFIGURATION</h2>
+            
+            <div class="config-grid">
+                <div class="control-group">
+                    <label>Injury Type</label>
+                    <select id="injury-type" onchange="updateSim()">
+                        <option value="gsw">Gunshot Wound (GSW)</option>
+                        <option value="blast">Blast / Fragmentation</option>
+                        <option value="laceration">Deep Laceration</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Caliber / Severity</label>
+                    <select id="caliber" onchange="updateSim()">
+                        <option value="0.5">5.56mm / Small</option>
+                        <option value="1.0">7.62mm / Medium</option>
+                        <option value="2.5">.50 BMG / Large</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Anatomical Location</label>
+                    <select id="location" onchange="updateSim()">
+                        <option value="extremity">Extremity (Junctional)</option>
+                        <option value="torso">Torso (Non-compressible)</option>
+                        <option value="limb">Limb (Distal)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Distance (Meters)</label>
+                    <input type="range" id="distance" min="5" max="500" value="50" oninput="updateSim()">
+                    <span id="dist-val" style="font-size: 0.7rem;">50m</span>
+                </div>
+            </div>
+
+            <div id="sim-stats">
+                <div class="stat-line">Estimated Flow: <span id="flow-rate">0</span> mL/min</div>
+                <div class="stat-line">Projected Blood Loss (5m): <span id="total-loss">0</span> mL</div>
+                <div class="stat-line" id="status-text">Status: STABLE</div>
+            </div>
+            
+            <button class="btn btn-random" onclick="randomizeCasualty()">RANDOMIZE SCENARIO</button>
+            <button class="btn" style="background:#b32d2d" onclick="startScenario()">START SCENARIO</button>
+        </div>
+
+
+        <!-- SIMULATION SCREEN (Real-time blood loss) -->
+        <div id="simulation-screen" class="panel hidden">
+            <h2>CASUALTY BLEEDING OUT!</h2>
+            <div id="casualty-info" style="margin-bottom: 20px;"></div>
+            
+            <div id="blood-loss-bar-container">
+                <div id="blood-loss-bar">0 mL Lost</div>
+            </div>
+
+            <div id="current-vitals">
+                <div class="vital-sign">Time Elapsed: <span id="time-elapsed">0:00</span></div>
+                <div class="vital-sign">Total Lost: <span id="lost-amount">0</span> mL</div>
+            </div>
+            
+            <button class="btn" onclick="endScenario()">STOP SIMULATION / TREAT</button>
+        </div>
     </div>
 
     <script>
-        function startGame() {
-            alert("Entering Care Under Fire...");
-            // Future logic to hide menu and show game canvas
+        let simulationInterval = null;
+        let totalBloodLost = 0;
+        let flowRatePerMin = 0;
+        let gameTimeSeconds = 0;
+        const totalBloodVolume = 5000; // Average adult male (in mL)
+
+        // --- View Management Functions ---
+        function showGenerator() {
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById('generator').classList.remove('hidden');
+            updateSim();
         }
 
-        function openSettings() {
-            alert("Settings: Audio, Difficulty, etc.");
+        function startScenario() {
+            // Move from generator view to simulation view
+            document.getElementById('generator').classList.add('hidden');
+            document.getElementById('simulation-screen').classList.remove('hidden');
+
+            // Set up simulation parameters based on config screen
+            flowRatePerMin = parseInt(document.getElementById('flow-rate').innerText);
+            totalBloodLost = 0;
+            gameTimeSeconds = 0;
+
+            document.getElementById('casualty-info').innerText = 
+                `Injury: ${document.getElementById('injury-type').value.toUpperCase()} | Loc: ${document.getElementById('location').value}`;
+
+            // Start the real-time simulation loop
+            if (simulationInterval) clearInterval(simulationInterval);
+            simulationInterval = setInterval(updateSimulationScreen, 1000); // Update every second
+        }
+
+        function endScenario() {
+            clearInterval(simulationInterval);
+            alert(`Scenario Paused. Total time: ${formatTime(gameTimeSeconds)}. Blood Lost: ${totalBloodLost}mL. Now proceed to apply MARCH algorithm treatments.`);
+            // In the next step, this will transition to the treatment phase.
+        }
+
+        // --- Simulation Logic ---
+
+        function updateSimulationScreen() {
+            gameTimeSeconds += 1;
+            // Calculate blood lost this second: (mL/min) / 60 seconds
+            totalBloodLost += flowRatePerMin / 60; 
+
+            // Update UI elements
+            const lostAmountEl = document.getElementById('lost-amount');
+            const timeElapsedEl = document.getElementById('time-elapsed');
+            const bloodBar = document.getElementById('blood-loss-bar');
+
+            lostAmountEl.innerText = Math.round(totalBloodLost);
+            timeElapsedEl.innerText = formatTime(gameTimeSeconds);
+
+            // Update progress bar
+            const percentageLost = (totalBloodLost / totalBloodVolume) * 100;
+            bloodBar.style.width = Math.min(percentageLost, 100) + '%';
+            bloodBar.innerText = Math.round(totalBloodLost) + ' mL Lost';
+
+            // Check for death (exsanguination)
+            if (totalBloodLost >= totalBloodVolume * 0.5) { // Usually death occurs around 40-50% loss
+                lostAmountEl.classList.add('fatality');
+            }
+
+            if (totalBloodLost >= totalBloodVolume) {
+                clearInterval(simulationInterval);
+                alert("CASUALTY EXSANGUINATED. PATIENT IS KIA (KILLED IN ACTION). Time took: " + formatTime(gameTimeSeconds));
+                endScenario();
+            }
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
+        // --- (randomizeCasualty and updateSim functions from previous response are used here) ---
+        function randomizeCasualty() {
+            const injuries = ['gsw', 'blast', 'laceration'];
+            const calibers = ['0.5', '1.0', '2.5'];
+            const locations = ['extremity', 'torso', 'limb'];
+
+            document.getElementById('injury-type').value = injuries[Math.floor(Math.random() * injuries.length)];
+            document.getElementById('caliber').value = calibers[Math.floor(Math.random() * calibers.length)];
+            document.getElementById('location').value = locations[Math.floor(Math.random() * locations.length)];
+            document.getElementById('distance').value = Math.floor(Math.random() * 495) + 5;
+            
+            updateSim();
+        }
+
+        function updateSim() {
+            const caliber = parseFloat(document.getElementById('caliber').value);
+            const location = document.getElementById('location').value;
+            const distance = parseInt(document.getElementById('distance').value);
+            document.getElementById('dist-val').innerText = distance + "m";
+
+            let baseFlow = (caliber * 500); 
+            if (distance > 100) baseFlow *= 0.8; 
+
+            let multiplier = 1.0;
+            if (location === 'extremity') multiplier = 1.5; 
+            if (location === 'torso') multiplier = 2.0;    
+            if (location === 'limb') multiplier = 0.7;     
+
+            const flowRate = Math.round(baseFlow * multiplier);
+            const totalLoss5m = flowRate * 5; 
+
+            document.getElementById('flow-rate').innerText = flowRate;
+            document.getElementById('total-loss').innerText = totalLoss5m;
+
+            const status = document.getElementById('status-text');
+            if (totalLoss5m > 2000) {
+                status.innerText = "Status: CLASS IV SHOCK / CRITICAL";
+                status.className = "stat-line critical";
+                status.style.color = "#ff4d4d";
+            } else if (totalLoss5m > 1000) {
+                status.innerText = "Status: CLASS II SHOCK / MODERATE";
+                status.style.color = "orange";
+            } else {
+                status.innerText = "Status: STABLE / CONTROLLED";
+                status.style.color = "#8da45b";
+            }
         }
     </script>
-
 </body>
 </html>
