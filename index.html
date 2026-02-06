@@ -104,6 +104,15 @@
         </div>
     </div>
 
+    <!-- TREATMENT INTERFACE -->
+<div id="treatment-controls" style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+    <button class="btn" id="tq-btn" onclick="applyTreatment('tourniquet')">APPLY TOURNIQUET</button>
+    <button class="btn" id="pack-btn" onclick="applyTreatment('packing')">PACK WOUND</button>
+    <button class="btn" id="pressure-btn" onmousedown="startPressure()" onmouseup="stopPressure()">HOLD DIRECT PRESSURE</button>
+    <button class="btn" style="background:#444" onclick="nextPhase()">PROCEED TO 'A' (AIRWAY)</button>
+</div>
+<div id="action-status" style="margin-top:10px; font-weight:bold; color:#8da45b;"></div>
+
     <script>
         let simulationInterval = null;
         let totalBloodLost = 0;
@@ -193,6 +202,60 @@
             
             updateSim();
         }
+
+        let isPressureApplied = false;
+let treatmentApplied = { tourniquet: false, packing: false };
+
+function applyTreatment(type) {
+    const location = document.getElementById('location').value;
+    const statusEl = document.getElementById('action-status');
+
+    if (type === 'tourniquet') {
+        if (location === 'limb') {
+            flowRatePerMin = 0; // TQ effectively stops limb bleeds
+            treatmentApplied.tourniquet = true;
+            statusEl.innerText = "SUCCESS: Tourniquet applied. Bleeding stopped.";
+            statusEl.style.color = "#8da45b";
+        } else {
+            statusEl.innerText = "FAILED: TQ ineffective on this anatomical location!";
+            statusEl.style.color = "#ff4d4d";
+        }
+    }
+
+    if (type === 'packing') {
+        if (location === 'extremity' || location === 'torso') {
+            flowRatePerMin *= 0.15; // Reduces bleeding by 85%
+            treatmentApplied.packing = true;
+            statusEl.innerText = "SUCCESS: Wound packed. Bleeding significantly reduced.";
+        } else {
+            statusEl.innerText = "NOTICE: TQ is preferred for limb injuries.";
+        }
+    }
+}
+
+function startPressure() {
+    isPressureApplied = true;
+    const originalFlow = flowRatePerMin;
+    flowRatePerMin *= 0.3; // Direct pressure slows bleed by 70%
+    document.getElementById('action-status').innerText = "Applying direct pressure...";
+    
+    // Store original flow to restore it when pressure is released
+    window.tempFlow = originalFlow;
+}
+
+function stopPressure() {
+    isPressureApplied = false;
+    flowRatePerMin = window.tempFlow || flowRatePerMin;
+    document.getElementById('action-status').innerText = "Pressure released.";
+}
+
+function nextPhase() {
+    if (flowRatePerMin > 50) {
+        alert("CRITICAL ERROR: You cannot proceed while the casualty is still actively hemorrhaging!");
+    } else {
+        alert("Massive Hemorrhage controlled. Moving to 'A' - Airway Management.");
+    }
+}
 
         function updateSim() {
             const caliber = parseFloat(document.getElementById('caliber').value);
